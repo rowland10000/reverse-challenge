@@ -29,9 +29,12 @@
 
   header { display: flex; align-items: flex-end; justify-content: space-between; padding: 4px 6px 2px; }
   header h1 { margin: 0; font-size: 34px; font-weight: 900; letter-spacing: -0.01em; line-height: 1; }
-  header h1 .rw { font-family: "Outfit", sans-serif; font-weight: 800; letter-spacing: -0.12em; margin-right: 4px; }
+  header h1 { display: flex; align-items: center; gap: 8px; }
+  header h1 .mark { width: 34px; height: 34px; border-radius: 10px; background: var(--ink); color: var(--cream); display: grid; place-items: center; flex: none; }
+  header h1 .mark .ic { width: 20px; height: 20px; }
+  .ic { width: 1em; height: 1em; fill: currentColor; display: inline-block; vertical-align: -0.12em; flex: none; }
   header small { font-family: "Outfit", sans-serif; font-weight: 600; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; opacity: .55; }
-  .reset { border: 2px solid var(--ink); background: transparent; color: var(--ink); border-radius: 999px; padding: 8px 14px; font-weight: 800; font-size: 13px; cursor: pointer; }
+  .reset { border: 2px solid var(--ink); background: transparent; color: var(--ink); border-radius: 999px; padding: 8px 14px; font-weight: 800; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
   .reset:active { background: var(--ink); color: var(--cream); }
 
   .card {
@@ -50,12 +53,9 @@
   .card .t { font-family: "Outfit", sans-serif; font-weight: 800; font-size: 13px; font-variant-numeric: tabular-nums; opacity: .8; }
 
   .face { width: 58px; height: 58px; border-radius: 50%; background: var(--cream); position: relative; flex: none; }
-  .card.o .face { background: var(--ink); }
   .face .eye { position: absolute; top: 18px; width: 9px; height: 9px; border-radius: 50%; background: var(--ink); }
-  .card.o .face .eye { background: var(--yellow); }
   .face .eye.l { left: 16px; } .face .eye.r { right: 16px; }
   .face .mouth { position: absolute; left: 50%; top: 34px; width: 18px; height: 6px; border-radius: 0 0 9px 9px; background: var(--ink); transform: translateX(-50%); transition: all .2s ease; }
-  .card.o .face .mouth { background: var(--yellow); }
   .card[data-state="rec"] .face .mouth { width: 16px; height: 16px; border-radius: 50%; top: 30px; }
   .card[data-state="rec"] .face { box-shadow: 0 0 0 4px var(--rec); animation: blink 1s infinite; }
   .card[data-state="play"] .face .mouth { animation: talk .28s infinite alternate; }
@@ -74,11 +74,10 @@
   }
   .pill:active { transform: scale(.97); }
   .pill:disabled { opacity: .45; cursor: default; }
-  .pill .k { font-family: "Outfit", sans-serif; font-weight: 800; letter-spacing: -0.1em; }
+  .pill .ic { width: 16px; height: 16px; }
   .pill.rec .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--rec); transition: border-radius .15s; }
   .pill.rec.live { background: var(--ink); color: var(--cream); }
   .pill.rec.live .dot { border-radius: 3px; }
-  .card.o .pill { background: var(--ink); color: var(--yellow); }
   .pill:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
 
   .err { background: var(--ink); color: #ffb3a7; border-radius: 16px; padding: 10px 14px; font-size: 13px; }
@@ -87,13 +86,19 @@
   @media (prefers-reduced-motion: reduce) { .card[data-state="rec"] .face, .card[data-state="play"] .face .mouth { animation: none; } }
 </style>
 
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-rw" viewBox="0 0 24 24"><path d="M11 5 2 12l9 7V5zm10 0-9 7 9 7V5z"/></symbol>
+  <symbol id="i-ff" viewBox="0 0 24 24"><path d="M13 5l9 7-9 7V5zM3 5l9 7-9 7V5z"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4z"/></symbol>
+  <symbol id="i-reset" viewBox="0 0 24 24"><path d="M12 5a7 7 0 1 1-6.3 4H3.2A9 9 0 1 0 12 3V0L7 4l5 4V5z"/></symbol>
+</svg>
 <div class="app">
   <header>
     <div>
       <small>Reverse Challenge</small>
-      <h1><span class="rw">◀◀</span>倒放挑戰</h1>
+      <h1><span class="mark"><svg class="ic"><use href="#i-rw"/></svg></span>倒放挑戰</h1>
     </div>
-    <button class="reset" id="reset">下一題 ↻</button>
+    <button class="reset" id="reset"><svg class="ic"><use href="#i-reset"/></svg>下一題</button>
   </header>
 
   <div class="err" id="err" hidden></div>
@@ -111,7 +116,7 @@
     <canvas class="wave" id="waveQ" height="36"></canvas>
     <div class="row">
       <button class="pill rec" id="recQ"><span class="dot"></span> 錄音</button>
-      <button class="pill" id="playQ" disabled><span class="k">◀◀</span> 聽倒放</button>
+      <button class="pill" id="playQ" disabled><svg class="ic"><use href="#i-rw"/></svg> 聽倒放</button>
     </div>
   </section>
 
@@ -128,7 +133,7 @@
     <canvas class="wave" id="waveM" height="36"></canvas>
     <div class="row">
       <button class="pill rec" id="recM" disabled><span class="dot"></span> 錄音</button>
-      <button class="pill" id="playM" disabled><span class="k">▶▶</span> 聽倒回來</button>
+      <button class="pill" id="playM" disabled><svg class="ic"><use href="#i-ff"/></svg> 聽倒回來</button>
     </div>
   </section>
 
@@ -143,7 +148,7 @@
       <div class="t" id="tO"></div>
     </div>
     <div class="row">
-      <button class="pill" id="playO" disabled><span class="k">▶</span> 聽原聲</button>
+      <button class="pill" id="playO" disabled><svg class="ic"><use href="#i-play"/></svg> 聽原聲</button>
     </div>
   </section>
 
