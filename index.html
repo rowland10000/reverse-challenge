@@ -246,14 +246,17 @@
   </details>
 </div>
 
+<audio id="player" playsinline preload="auto"></audio>
 <script>
 (() => {
   const $ = id => document.getElementById(id);
   const MAX_SEC = 15;
+  const player = $('player');
   let ctx = null, stream = null, proc = null, src = null;
-  let chunks = [], recording = false, recStart = 0, recTimer = null, activeRec = null;
-  let playing = null, raf = null;
+  let chunks = [], recording = false, recStart = 0, recTimer = null, activeRec = null, recRate = 48000;
+  let raf = null, playToken = 0;
 
+  // each clip: { data: Float32Array, rate: number, url: string|null, duration: number }
   const state = {
     round: 1, roles: 'AB', names: ['', ''], score: [0, 0],
     orig: null, origRev: null, imit: null, imitRev: null
@@ -288,9 +291,11 @@
   }
   function showErr(msg) { $('err').textContent = msg; $('err').hidden = !msg; }
 
-  // ---------- audio core ----------
-  async function ensureCtx() {
-    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+  // ---------- audio: capture via Web Audio, play via <audio> (WAV) ----------
+  async function freshCtx() {
+    // iOS changes the sample rate after getUserMedia; a fresh context per recording avoids stale state.
+    if (ctx) { try { await ctx.close(); } catch (e) {} }
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
     if (ctx.state === 'suspended') await ctx.resume();
     return ctx;
   }
@@ -299,20 +304,15 @@
     showErr('');
     stopPlayback();
     try {
-      await ensureCtx();
       stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      await freshCtx();
     } catch (e) {
       const blocked = !micAllowedByPolicy() || (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError'));
-      if (blocked) {
-        showFallback();
-        showErr('');
-      } else {
-        showErr('拿不到麥克風（' + (e && e.name ? e.name : '未知錯誤') + '）。請確認沒有其他 App 正在使用麥克風後再試，或改用下方錄影／錄音按鈕。');
-        showFallback();
-      }
+      showFallback();
+      showErr(blocked ? '' : '拿不到麥克風（' + (e && e.name ? e.name : '未知錯誤') + '）。請確認沒有其他 App 正在使用麥克風後再試，或改用下方錄影／錄音按鈕。');
       return;
     }
-    chunks = []; recording = true; activeRec = which; recStart = ctx.currentTime;
+    chunks = []; recording = true; activeRec = which; recStart = ctx.currentTime; recRate = ctx.sampleRate;
     src = ctx.createMediaStreamSource(stream);
     proc = ctx.createScriptProcessor(4096, 1, 1);
     proc.onaudioprocess = e => { if (recording) chunks.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
@@ -320,7 +320,6 @@
     src.connect(proc); proc.connect(mute); mute.connect(ctx.destination);
     const btn = $(which), hint = $(which + 'Hint');
     btn.classList.add('live'); hint.textContent = '錄音中… 再按一次停止';
-    const tEl = which === 'rec1' ? $('t1') : $('t2b');
     recTimer = setInterval(() => {
       const el = ctx.currentTime - recStart;
       hint.textContent = '錄音中 ' + el.toFixed(1) + 's · 再按一次停止';
@@ -337,63 +336,83 @@
     const len = chunks.reduce((n, c) => n + c.length, 0);
     const data = new Float32Array(len); let o = 0;
     for (const c of chunks) { data.set(c, o); o += c.length; }
-    ingest(which, data);
+    // release the record session so iOS routes playback back to the loudspeaker
+    if (ctx) { try { ctx.close(); } catch (e) {} ctx = null; }
+    ingest(which, data, recRate);
   }
-  function ingest(which, data) {
-    const trimmed = trimSilence(data);
-    if (trimmed.length < ctx.sampleRate * 0.3) {
+  function ingest(which, data, rate) {
+    const trimmed = trimSilence(data, rate);
+    if (trimmed.length < rate * 0.3) {
       $(which + 'Hint').textContent = '太短了，再錄一次';
       return;
     }
-    const buf = toBuffer(trimmed), rev = toBuffer(reverse(trimmed));
+    const clip = makeClip(trimmed, rate), rev = makeClip(reverse(trimmed), rate);
     if (which === 'rec1') {
-      state.orig = buf; state.origRev = rev;
+      state.orig = clip; state.origRev = rev;
       $('rec1Hint').textContent = '錄好了。想重錄就再按圓鈕。';
       $('deck1').hidden = false; $('act1').hidden = false; $('phraseWrap').hidden = false; $('go2').hidden = false;
-      drawWave($('wave1'), rev.getChannelData(0), '#5dd6c8');
+      drawWave($('wave1'), rev.data, '#5dd6c8');
       $('t1').textContent = fmt(rev.duration);
-      drawWave($('wave2'), rev.getChannelData(0), '#5dd6c8');
+      drawWave($('wave2'), rev.data, '#5dd6c8');
       $('t2').textContent = fmt(rev.duration);
     } else {
-      state.imit = buf; state.imitRev = rev;
+      state.imit = clip; state.imitRev = rev;
       $('rec2Hint').textContent = '錄好了。想重錄就再按圓鈕。';
       $('deck2b').hidden = false; $('act2').hidden = false; $('guessWrap').hidden = false; $('go3').hidden = false;
-      drawWave($('wave2b'), rev.getChannelData(0), '#f2b544');
+      drawWave($('wave2b'), rev.data, '#f2b544');
       $('t2b').textContent = fmt(rev.duration);
     }
   }
-  function trimSilence(d) {
+  function trimSilence(d, rate) {
     const th = 0.015; let a = 0, b = d.length - 1;
     while (a < b && Math.abs(d[a]) < th) a++;
     while (b > a && Math.abs(d[b]) < th) b--;
-    const pad = Math.floor(ctx.sampleRate * 0.08);
+    const pad = Math.floor(rate * 0.08);
     a = Math.max(0, a - pad); b = Math.min(d.length, b + pad);
     return d.slice(a, b);
   }
   function reverse(d) { const r = new Float32Array(d.length); for (let i = 0, n = d.length; i < n; i++) r[i] = d[n - 1 - i]; return r; }
-  function toBuffer(d) { const b = ctx.createBuffer(1, d.length, ctx.sampleRate); b.getChannelData(0).set(d); return b; }
+  function makeClip(data, rate) {
+    // normalise so quiet recordings are audible
+    let peak = 0; for (let i = 0; i < data.length; i++) { const v = Math.abs(data[i]); if (v > peak) peak = v; }
+    const gain = peak > 0.001 ? Math.min(0.95 / peak, 8) : 1;
+    const out = new Float32Array(data.length); for (let i = 0; i < data.length; i++) out[i] = data[i] * gain;
+    return { data: out, rate, url: URL.createObjectURL(toWav(out, rate)), duration: out.length / rate };
+  }
+  function toWav(samples, rate) {
+    const n = samples.length, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+    const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    str(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); str(8, 'WAVE'); str(12, 'fmt ');
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    str(36, 'data'); v.setUint32(40, n * 2, true);
+    for (let i = 0, o = 44; i < n; i++, o += 2) { const x = Math.max(-1, Math.min(1, samples[i])); v.setInt16(o, x < 0 ? x * 0x8000 : x * 0x7fff, true); }
+    return new Blob([buf], { type: 'audio/wav' });
+  }
   const fmt = s => s.toFixed(1).padStart(4, '0') + 's';
 
   function stopPlayback() {
-    if (playing) { try { playing.node.stop(); } catch (e) {} playing = null; }
+    playToken++;
+    try { player.pause(); } catch (e) {}
     if (raf) cancelAnimationFrame(raf), raf = null;
   }
-  async function play(buf, canvas, color) {
-    if (!buf) return;
-    await ensureCtx();
+  function play(clip, canvas, color) {
+    if (!clip) return;
     stopPlayback();
-    const node = ctx.createBufferSource(); node.buffer = buf; node.connect(ctx.destination);
-    const t0 = ctx.currentTime; node.start();
-    playing = { node, t0 };
-    const data = buf.getChannelData(0);
+    const token = playToken;
+    player.src = clip.url;
+    player.currentTime = 0;
+    player.volume = 1;
+    const p = player.play();
+    if (p && p.catch) p.catch(e => showErr('播放失敗（' + (e && e.name ? e.name : '未知') + '）。請確認手機沒有靜音、音量有開，再按一次。'));
     const tick = () => {
-      if (!playing || playing.node !== node) return;
-      const p = (ctx.currentTime - t0) / buf.duration;
-      if (canvas) drawWave(canvas, data, color, Math.min(p, 1));
-      if (p < 1) raf = requestAnimationFrame(tick); else { playing = null; if (canvas) drawWave(canvas, data, color); }
+      if (token !== playToken) return;
+      const prog = clip.duration ? Math.min(player.currentTime / clip.duration, 1) : 0;
+      if (canvas) drawWave(canvas, clip.data, color, prog);
+      if (!player.ended && !player.paused) raf = requestAnimationFrame(tick);
+      else if (canvas) drawWave(canvas, clip.data, color);
     };
     tick();
-    node.onended = () => { if (playing && playing.node === node) playing = null; };
   }
 
   function drawWave(canvas, data, color, progress) {
@@ -416,6 +435,7 @@
     if (progress != null && progress < 1) { g.fillStyle = '#ecebe4'; g.fillRect(progress * w, 0, 1.5, h); }
   }
 
+  // ---------- fallback (file input) ----------
   function micAllowedByPolicy() {
     try {
       const pp = document.permissionsPolicy || document.featurePolicy;
@@ -432,18 +452,14 @@
     showErr('');
     $(which + 'Hint').textContent = '讀取中…';
     try {
-      await ensureCtx();
+      const dc = new (window.AudioContext || window.webkitAudioContext)();
       const ab = await file.arrayBuffer();
-      const decoded = await new Promise((res, rej) => { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); });
+      const decoded = await new Promise((res, rej) => { const p = dc.decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); });
       let data = decoded.getChannelData(0);
-      if (decoded.sampleRate !== ctx.sampleRate) {
-        const ratio = decoded.sampleRate / ctx.sampleRate, n = Math.floor(data.length / ratio), out = new Float32Array(n);
-        for (let i = 0; i < n; i++) out[i] = data[Math.floor(i * ratio)];
-        data = out;
-      }
-      const maxN = ctx.sampleRate * MAX_SEC;
+      const maxN = decoded.sampleRate * MAX_SEC;
       if (data.length > maxN) data = data.slice(0, maxN);
-      ingest(which, new Float32Array(data));
+      ingest(which, new Float32Array(data), decoded.sampleRate);
+      try { dc.close(); } catch (e) {}
     } catch (e) {
       showErr('這個檔案的聲音讀不出來（' + (e && e.name ? e.name : '解碼失敗') + '）。請再錄一次，錄短一點。');
       $(which + 'Hint').textContent = '請重新錄一次';
@@ -483,6 +499,7 @@
   $('next').addEventListener('click', () => {
     stopPlayback();
     state.round++; state.roles = state.roles === 'AB' ? 'BA' : 'AB';
+    [state.orig, state.origRev, state.imit, state.imitRev].forEach(c => { if (c && c.url) URL.revokeObjectURL(c.url); });
     state.orig = state.origRev = state.imit = state.imitRev = null;
     ['deck1', 'act1', 'phraseWrap', 'go2', 'deck2b', 'act2', 'guessWrap', 'go3'].forEach(id => $(id).hidden = true);
     $('phrase').value = ''; $('guess').value = '';
@@ -490,13 +507,12 @@
     renderNames(); save(); showStep(1);
   });
 
-  // demo waveform so the deck isn't blank before the first recording
   (function demo() {
     const n = 3000, d = new Float32Array(n);
     for (let i = 0; i < n; i++) { const env = Math.sin(Math.PI * i / n) * (0.4 + 0.6 * Math.abs(Math.sin(i / 90))); d[i] = env * Math.sin(i / 3.7) * 0.9; }
     drawWave($('wave2'), d, '#5dd6c8');
   })();
-  window.addEventListener('resize', () => { if (state.origRev) { drawWave($('wave1'), state.origRev.getChannelData(0), '#5dd6c8'); drawWave($('wave2'), state.origRev.getChannelData(0), '#5dd6c8'); } if (state.imitRev) drawWave($('wave2b'), state.imitRev.getChannelData(0), '#f2b544'); });
+  window.addEventListener('resize', () => { if (state.origRev) { drawWave($('wave1'), state.origRev.data, '#5dd6c8'); drawWave($('wave2'), state.origRev.data, '#5dd6c8'); } if (state.imitRev) drawWave($('wave2b'), state.imitRev.data, '#f2b544'); });
   renderNames();
 })();
 </script>
