@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="zh-Hant">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta charset="utf-8">
+<title>倒放挑戰</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+  :root {
+    --bg: #14161c;
+    --panel: #1d2028;
+    --panel-2: #262a34;
+    --line: #343946;
+    --ink: #ecebe4;
+    --ink-2: #a8aab3;
+    --ink-3: #6f7280;
+    --amber: #f2b544;
+    --amber-ink: #1a1405;
+    --cyan: #5dd6c8;
+    --rec: #e8503a;
+    --ok: #7ccf7a;
+    --font-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-touch-callout: none;
+    min-height: 100vh;
+  }
+  button { font-family: inherit; }
+  .app { max-width: 480px; margin: 0 auto; padding: 20px 16px 48px; display: flex; flex-direction: column; gap: 16px; }
+
+  header { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 4px 4px 0; }
+  .brand { display: flex; flex-direction: column; }
+  .brand h1 { margin: 0; font-size: 30px; font-weight: 900; letter-spacing: 0.04em; line-height: 1.1; }
+  .brand h1 .rw { color: var(--amber); font-family: var(--font-mono); font-size: 22px; letter-spacing: -0.1em; margin-right: 6px; vertical-align: 2px; }
+  .brand small { color: var(--ink-3); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; font-family: var(--font-mono); }
+  .score { display: flex; gap: 8px; }
+  .score .pl { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; min-width: 56px; text-align: center; }
+  .score .pl b { display: block; font-family: var(--font-mono); font-size: 20px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .score .pl span { font-size: 11px; color: var(--ink-3); letter-spacing: 0.08em; }
+  .score .pl.on { border-color: var(--amber); }
+
+  .roles { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; }
+  .roles .r { display: flex; flex-direction: column; gap: 2px; }
+  .roles .r:last-child { text-align: right; }
+  .roles .r small { font-size: 11px; letter-spacing: 0.12em; color: var(--ink-3); font-family: var(--font-mono); }
+  .roles .r input { background: transparent; border: 0; border-bottom: 1px dashed var(--line); color: var(--ink); font: 700 16px var(--font-body); width: 100%; padding: 2px 0; outline: none; }
+  .roles .r:last-child input { text-align: right; }
+  .roles .r input:focus { border-bottom-color: var(--amber); }
+  .roles .round { font-family: var(--font-mono); color: var(--amber); font-size: 13px; white-space: nowrap; }
+
+  .steps { display: flex; gap: 6px; padding: 0 2px; }
+  .steps div { flex: 1; height: 4px; border-radius: 2px; background: var(--line); }
+  .steps div.done { background: var(--ink-3); }
+  .steps div.now { background: var(--amber); }
+
+  .stage { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 18px 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+  .stage .eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.14em; color: var(--amber); text-transform: uppercase; }
+  .stage h2 { margin: 0; font-size: 22px; font-weight: 900; line-height: 1.25; text-wrap: balance; }
+  .stage p { margin: 0; color: var(--ink-2); font-size: 15px; }
+  .stage p b { color: var(--ink); }
+
+  .deck { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px 8px; display: flex; flex-direction: column; gap: 6px; }
+  .deck .lbl { display: flex; justify-content: space-between; align-items: center; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); letter-spacing: 0.08em; }
+  .deck .lbl .dir { color: var(--cyan); }
+  .deck .lbl .dir.fw { color: var(--ink-2); }
+  .deck canvas { width: 100%; height: 72px; display: block; border-radius: 6px; }
+  .deck .time { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+  .recbtn { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 6px 0 2px; }
+  .recbtn button {
+    width: 108px; height: 108px; border-radius: 50%; border: 0; cursor: pointer;
+    background: var(--panel-2); color: var(--ink);
+    box-shadow: 0 0 0 6px var(--panel), 0 0 0 8px var(--line);
+    display: grid; place-items: center; -webkit-tap-highlight-color: transparent; user-select: none;
+    transition: transform .12s ease, background .2s ease;
+  }
+  .recbtn button:active { transform: scale(.96); }
+  .recbtn button .dot { width: 40px; height: 40px; border-radius: 50%; background: var(--rec); transition: border-radius .15s, transform .15s; }
+  .recbtn button.live { background: #2c1c1a; box-shadow: 0 0 0 6px var(--panel), 0 0 0 8px var(--rec); animation: pulse 1.2s infinite; }
+  .recbtn button.live .dot { border-radius: 8px; transform: scale(.7); }
+  .recbtn small { color: var(--ink-3); font-size: 13px; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 6px var(--panel), 0 0 0 8px var(--rec); } 50% { box-shadow: 0 0 0 6px var(--panel), 0 0 0 12px rgba(232,80,58,.35); } }
+
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row > * { flex: 1 1 0; }
+  .btn { border: 1px solid var(--line); background: var(--panel-2); color: var(--ink); border-radius: 12px; padding: 13px 14px; font-size: 15px; font-weight: 700; cursor: pointer; -webkit-tap-highlight-color: transparent; display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .btn.primary { background: var(--amber); color: var(--amber-ink); border-color: var(--amber); }
+  .btn.cyan { border-color: var(--cyan); color: var(--cyan); background: transparent; }
+  .btn.ghost { background: transparent; }
+  .btn.ok { border-color: var(--ok); color: var(--ok); background: transparent; }
+  .btn .k { font-family: var(--font-mono); letter-spacing: -0.08em; }
+  .btn:focus-visible, .recbtn button:focus-visible, input:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 13px; color: var(--ink-2); }
+  .field input { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; color: var(--ink); font: 400 17px var(--font-body); padding: 12px 14px; width: 100%; outline: none; }
+  .field input:focus { border-color: var(--amber); }
+
+  .reveal { display: grid; gap: 10px; }
+  .reveal .card { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+  .reveal .card small { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; color: var(--ink-3); }
+  .reveal .card strong { font-size: 20px; font-weight: 900; }
+  .reveal .card.ans strong { color: var(--amber); }
+
+  .hint { color: var(--ink-3); font-size: 13px; text-align: center; }
+  .err { background: #2c1c1a; border: 1px solid var(--rec); color: #ffb3a7; border-radius: 12px; padding: 12px 14px; font-size: 14px; }
+  .howto { border-top: 1px solid var(--line); padding-top: 14px; color: var(--ink-3); font-size: 13px; }
+  .howto summary { cursor: pointer; color: var(--ink-2); font-weight: 700; }
+  .howto ol { padding-left: 20px; margin: 8px 0 0; display: flex; flex-direction: column; gap: 4px; }
+  .notice { background: #2a2411; border: 1px solid var(--amber); color: #f6dfae; border-radius: 12px; padding: 12px 14px; font-size: 14px; }
+  .fallback { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+  .fallback .btn { cursor: pointer; }
+  .fallback input { display: none; }
+  .fallback small { color: var(--ink-3); font-size: 12px; text-align: center; }
+  [hidden] { display: none !important; }
+  @media (prefers-reduced-motion: reduce) { .recbtn button.live { animation: none; } .recbtn button { transition: none; } }
+</style>
+
+<div class="app">
+  <header>
+    <div class="brand">
+      <small>Reverse Challenge</small>
+      <h1><span class="rw">◀◀</span>倒放挑戰</h1>
+    </div>
+    <div class="score">
+      <div class="pl" id="scA"><b>0</b><span id="scAn">A</span></div>
+      <div class="pl" id="scB"><b>0</b><span id="scBn">B</span></div>
+    </div>
+  </header>
+
+  <div class="roles">
+    <div class="r"><small>出題</small><input id="nameSetter" placeholder="玩家 A" maxlength="8" aria-label="出題者名字"></div>
+    <div class="round" id="roundLbl">ROUND 1</div>
+    <div class="r"><small>猜題</small><input id="nameGuesser" placeholder="玩家 B" maxlength="8" aria-label="猜題者名字"></div>
+  </div>
+
+  <div class="steps"><div id="s1" class="now"></div><div id="s2"></div><div id="s3"></div></div>
+
+  <div class="err" id="err" hidden></div>
+  <div class="notice" id="policyNote" hidden>這個頁面嵌在 claude.ai 裡，瀏覽器不開放網頁直接用麥克風。改用下方「用手機錄影／錄音」按鈕：會開啟手機內建的相機或錄音機，錄好後自動回到這裡倒轉。</div>
+
+  <!-- STEP 1 -->
+  <section class="stage" id="stage1">
+    <div class="eyebrow">Step 1 · 出題</div>
+    <h2><span class="nm-setter">玩家 A</span>，說一句話</h2>
+    <p><b class="nm-guesser">玩家 B</b>先摀耳朵或走遠一點。按下圓鈕開始錄，再按一次停止，最長 15 秒。</p>
+    <div class="recbtn">
+      <button id="rec1" aria-label="錄音"><span class="dot"></span></button>
+      <small id="rec1Hint">按一下開始錄音</small>
+    </div>
+    <div class="fallback" id="fb1" hidden>
+      <label class="btn primary">用手機錄影／錄音（出題）<input type="file" id="file1" accept="audio/*,video/*" capture="user"></label>
+      <small>對著鏡頭說一句話就好，只會取用聲音。</small>
+    </div>
+    <div class="deck" id="deck1" hidden>
+      <div class="lbl"><span>原聲 → 倒放版</span><span class="time" id="t1">00.0s</span></div>
+      <canvas id="wave1" height="72"></canvas>
+      <div class="lbl"><span class="dir">◀◀ 倒放播放中才會顯示進度</span><span></span></div>
+    </div>
+    <div class="row" id="act1" hidden>
+      <button class="btn cyan" id="play1r"><span class="k">◀◀</span> 聽倒放版</button>
+      <button class="btn ghost" id="redo1">重錄</button>
+    </div>
+    <div class="field" id="phraseWrap" hidden>
+      <label for="phrase">原句（選填，揭曉時顯示）</label>
+      <input id="phrase" placeholder="例如：吐司噴給你聞" autocomplete="off">
+    </div>
+    <button class="btn primary" id="go2" hidden>把倒放版交給 <span class="nm-guesser">玩家 B</span> →</button>
+  </section>
+
+  <!-- STEP 2 -->
+  <section class="stage" id="stage2" hidden>
+    <div class="eyebrow">Step 2 · 模仿</div>
+    <h2><span class="nm-guesser">玩家 B</span>，聽倒放版，然後模仿它</h2>
+    <p>可以重複聽。錄下你的模仿，程式會再把它倒回來，理論上就會變回原句。</p>
+    <div class="deck">
+      <div class="lbl"><span>題目 · 倒放版</span><span class="time" id="t2">00.0s</span></div>
+      <canvas id="wave2" height="72"></canvas>
+      <div class="lbl"><span class="dir">◀◀ REVERSED</span><span></span></div>
+    </div>
+    <button class="btn cyan" id="play2r"><span class="k">◀◀</span> 聽倒放版</button>
+    <div class="recbtn">
+      <button id="rec2" aria-label="錄模仿"><span class="dot"></span></button>
+      <small id="rec2Hint">按一下開始錄你的模仿</small>
+    </div>
+    <div class="fallback" id="fb2" hidden>
+      <label class="btn primary">用手機錄影／錄音（模仿）<input type="file" id="file2" accept="audio/*,video/*" capture="user"></label>
+      <small>錄好後會自動倒轉回來。</small>
+    </div>
+    <div class="deck" id="deck2b" hidden>
+      <div class="lbl"><span>你的模仿 → 倒回來</span><span class="time" id="t2b">00.0s</span></div>
+      <canvas id="wave2b" height="72"></canvas>
+      <div class="lbl"><span class="dir fw">▶▶ 倒回來後應該像原句</span><span></span></div>
+    </div>
+    <div class="row" id="act2" hidden>
+      <button class="btn cyan" id="play2b"><span class="k">▶▶</span> 聽模仿倒回來</button>
+      <button class="btn ghost" id="redo2">重錄模仿</button>
+    </div>
+    <div class="field" id="guessWrap" hidden>
+      <label for="guess">你覺得原句是？</label>
+      <input id="guess" placeholder="輸入你的答案" autocomplete="off">
+    </div>
+    <button class="btn primary" id="go3" hidden>揭曉答案</button>
+  </section>
+
+  <!-- STEP 3 -->
+  <section class="stage" id="stage3" hidden>
+    <div class="eyebrow">Step 3 · 揭曉</div>
+    <h2>對答案</h2>
+    <div class="reveal">
+      <div class="card ans"><small>原句</small><strong id="revPhrase">（出題者沒有輸入原句）</strong></div>
+      <div class="card"><small>猜題者的答案</small><strong id="revGuess">—</strong></div>
+    </div>
+    <div class="row">
+      <button class="btn ghost" id="play3o"><span class="k">▶</span> 原聲</button>
+      <button class="btn cyan" id="play3r"><span class="k">◀◀</span> 倒放版</button>
+      <button class="btn ghost" id="play3b"><span class="k">▶▶</span> 模仿倒回</button>
+    </div>
+    <p>由出題者裁定：</p>
+    <div class="row">
+      <button class="btn ok" id="judgeOk">猜對了，<span class="nm-guesser">玩家 B</span> +1</button>
+      <button class="btn ghost" id="judgeNo">沒猜到</button>
+    </div>
+    <button class="btn primary" id="next" hidden>下一回合，交換角色 →</button>
+  </section>
+
+  <details class="howto">
+    <summary>怎麼玩</summary>
+    <ol>
+      <li>出題者對手機說一句話，猜題者不能聽。</li>
+      <li>程式把整段聲音頭尾倒轉，猜題者聽這段「外星語」。</li>
+      <li>猜題者盡力模仿外星語並錄下來，程式再把模仿倒轉回來。</li>
+      <li>倒回來的聲音會變成（歪掉的）原句，猜題者猜原句是什麼。</li>
+    </ol>
+    <p style="margin:10px 0 0">第一次使用瀏覽器會詢問麥克風權限。錄音只留在這支手機，不會上傳。</p>
+  </details>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const MAX_SEC = 15;
+  let ctx = null, stream = null, proc = null, src = null;
+  let chunks = [], recording = false, recStart = 0, recTimer = null, activeRec = null;
+  let playing = null, raf = null;
+
+  const state = {
+    round: 1, roles: 'AB', names: ['', ''], score: [0, 0],
+    orig: null, origRev: null, imit: null, imitRev: null
+  };
+  try { const s = JSON.parse(localStorage.getItem('rc-state-v2') || 'null'); if (s) { state.round = s.round || 1; state.roles = s.roles || 'AB'; state.names = s.names || state.names; state.score = s.score || [0, 0]; } } catch (e) {}
+
+  const disp = i => state.names[i] || (i ? '玩家 B' : '玩家 A');
+  const setterIdx = () => state.roles === 'AB' ? 0 : 1;
+  const guesserIdx = () => 1 - setterIdx();
+
+  function save() { try { localStorage.setItem('rc-state-v2', JSON.stringify({ round: state.round, roles: state.roles, names: state.names, score: state.score })); } catch (e) {} }
+
+  function renderNames() {
+    const s = disp(setterIdx()), g = disp(guesserIdx());
+    document.querySelectorAll('.nm-setter').forEach(el => el.textContent = s);
+    document.querySelectorAll('.nm-guesser').forEach(el => el.textContent = g);
+    $('nameSetter').value = state.names[setterIdx()]; $('nameGuesser').value = state.names[guesserIdx()];
+    $('nameSetter').placeholder = setterIdx() ? '玩家 B' : '玩家 A'; $('nameGuesser').placeholder = guesserIdx() ? '玩家 B' : '玩家 A';
+    $('scA').querySelector('b').textContent = state.score[0];
+    $('scB').querySelector('b').textContent = state.score[1];
+    $('scAn').textContent = disp(0); $('scBn').textContent = disp(1);
+    $('scA').classList.toggle('on', guesserIdx() === 0);
+    $('scB').classList.toggle('on', guesserIdx() === 1);
+    $('roundLbl').textContent = 'ROUND ' + state.round;
+  }
+  $('nameSetter').addEventListener('input', e => { state.names[setterIdx()] = e.target.value.trim(); renderNames(); save(); });
+  $('nameGuesser').addEventListener('input', e => { state.names[guesserIdx()] = e.target.value.trim(); renderNames(); save(); });
+
+  function showStep(n) {
+    [1, 2, 3].forEach(i => { $('stage' + i).hidden = i !== n; $('s' + i).className = i < n ? 'done' : i === n ? 'now' : ''; });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  function showErr(msg) { $('err').textContent = msg; $('err').hidden = !msg; }
+
+  // ---------- audio core ----------
+  async function ensureCtx() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') await ctx.resume();
+    return ctx;
+  }
+  async function startRec(which) {
+    if (recording) return;
+    showErr('');
+    stopPlayback();
+    try {
+      await ensureCtx();
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    } catch (e) {
+      const blocked = !micAllowedByPolicy() || (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError'));
+      if (blocked) {
+        showFallback();
+        showErr('');
+      } else {
+        showErr('拿不到麥克風（' + (e && e.name ? e.name : '未知錯誤') + '）。請確認沒有其他 App 正在使用麥克風後再試，或改用下方錄影／錄音按鈕。');
+        showFallback();
+      }
+      return;
+    }
+    chunks = []; recording = true; activeRec = which; recStart = ctx.currentTime;
+    src = ctx.createMediaStreamSource(stream);
+    proc = ctx.createScriptProcessor(4096, 1, 1);
+    proc.onaudioprocess = e => { if (recording) chunks.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
+    const mute = ctx.createGain(); mute.gain.value = 0;
+    src.connect(proc); proc.connect(mute); mute.connect(ctx.destination);
+    const btn = $(which), hint = $(which + 'Hint');
+    btn.classList.add('live'); hint.textContent = '錄音中… 再按一次停止';
+    const tEl = which === 'rec1' ? $('t1') : $('t2b');
+    recTimer = setInterval(() => {
+      const el = ctx.currentTime - recStart;
+      hint.textContent = '錄音中 ' + el.toFixed(1) + 's · 再按一次停止';
+      if (el >= MAX_SEC) stopRec();
+    }, 100);
+  }
+  function stopRec() {
+    if (!recording) return;
+    recording = false; clearInterval(recTimer);
+    try { proc.disconnect(); src.disconnect(); } catch (e) {}
+    stream.getTracks().forEach(t => t.stop());
+    const which = activeRec;
+    $(which).classList.remove('live');
+    const len = chunks.reduce((n, c) => n + c.length, 0);
+    const data = new Float32Array(len); let o = 0;
+    for (const c of chunks) { data.set(c, o); o += c.length; }
+    ingest(which, data);
+  }
+  function ingest(which, data) {
+    const trimmed = trimSilence(data);
+    if (trimmed.length < ctx.sampleRate * 0.3) {
+      $(which + 'Hint').textContent = '太短了，再錄一次';
+      return;
+    }
+    const buf = toBuffer(trimmed), rev = toBuffer(reverse(trimmed));
+    if (which === 'rec1') {
+      state.orig = buf; state.origRev = rev;
+      $('rec1Hint').textContent = '錄好了。想重錄就再按圓鈕。';
+      $('deck1').hidden = false; $('act1').hidden = false; $('phraseWrap').hidden = false; $('go2').hidden = false;
+      drawWave($('wave1'), rev.getChannelData(0), '#5dd6c8');
+      $('t1').textContent = fmt(rev.duration);
+      drawWave($('wave2'), rev.getChannelData(0), '#5dd6c8');
+      $('t2').textContent = fmt(rev.duration);
+    } else {
+      state.imit = buf; state.imitRev = rev;
+      $('rec2Hint').textContent = '錄好了。想重錄就再按圓鈕。';
+      $('deck2b').hidden = false; $('act2').hidden = false; $('guessWrap').hidden = false; $('go3').hidden = false;
+      drawWave($('wave2b'), rev.getChannelData(0), '#f2b544');
+      $('t2b').textContent = fmt(rev.duration);
+    }
+  }
+  function trimSilence(d) {
+    const th = 0.015; let a = 0, b = d.length - 1;
+    while (a < b && Math.abs(d[a]) < th) a++;
+    while (b > a && Math.abs(d[b]) < th) b--;
+    const pad = Math.floor(ctx.sampleRate * 0.08);
+    a = Math.max(0, a - pad); b = Math.min(d.length, b + pad);
+    return d.slice(a, b);
+  }
+  function reverse(d) { const r = new Float32Array(d.length); for (let i = 0, n = d.length; i < n; i++) r[i] = d[n - 1 - i]; return r; }
+  function toBuffer(d) { const b = ctx.createBuffer(1, d.length, ctx.sampleRate); b.getChannelData(0).set(d); return b; }
+  const fmt = s => s.toFixed(1).padStart(4, '0') + 's';
+
+  function stopPlayback() {
+    if (playing) { try { playing.node.stop(); } catch (e) {} playing = null; }
+    if (raf) cancelAnimationFrame(raf), raf = null;
+  }
+  async function play(buf, canvas, color) {
+    if (!buf) return;
+    await ensureCtx();
+    stopPlayback();
+    const node = ctx.createBufferSource(); node.buffer = buf; node.connect(ctx.destination);
+    const t0 = ctx.currentTime; node.start();
+    playing = { node, t0 };
+    const data = buf.getChannelData(0);
+    const tick = () => {
+      if (!playing || playing.node !== node) return;
+      const p = (ctx.currentTime - t0) / buf.duration;
+      if (canvas) drawWave(canvas, data, color, Math.min(p, 1));
+      if (p < 1) raf = requestAnimationFrame(tick); else { playing = null; if (canvas) drawWave(canvas, data, color); }
+    };
+    tick();
+    node.onended = () => { if (playing && playing.node === node) playing = null; };
+  }
+
+  function drawWave(canvas, data, color, progress) {
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth || 300, h = 72;
+    if (canvas.width !== w * dpr) { canvas.width = w * dpr; canvas.height = h * dpr; }
+    const g = canvas.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.fillStyle = '#0f1116'; g.fillRect(0, 0, w, h);
+    g.strokeStyle = '#2a2e3a'; g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke();
+    const bars = Math.floor(w / 3), step = Math.floor(data.length / bars) || 1;
+    for (let i = 0; i < bars; i++) {
+      let peak = 0;
+      for (let j = i * step, e = Math.min(data.length, j + step); j < e; j += 4) { const v = Math.abs(data[j]); if (v > peak) peak = v; }
+      const bh = Math.max(2, peak * (h - 8));
+      g.fillStyle = progress != null && i / bars <= progress ? color : (progress != null ? '#3b4050' : color);
+      g.globalAlpha = progress == null ? 0.85 : 1;
+      g.fillRect(i * 3, (h - bh) / 2, 2, bh);
+    }
+    g.globalAlpha = 1;
+    if (progress != null && progress < 1) { g.fillStyle = '#ecebe4'; g.fillRect(progress * w, 0, 1.5, h); }
+  }
+
+  function micAllowedByPolicy() {
+    try {
+      const pp = document.permissionsPolicy || document.featurePolicy;
+      if (pp && typeof pp.allowsFeature === 'function') return pp.allowsFeature('microphone');
+    } catch (e) {}
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  }
+  function showFallback() {
+    $('policyNote').hidden = false; $('fb1').hidden = false; $('fb2').hidden = false;
+    $('rec1Hint').textContent = '此處麥克風被封鎖，請用下方按鈕'; $('rec2Hint').textContent = '此處麥克風被封鎖，請用下方按鈕';
+  }
+  async function handleFile(which, file) {
+    if (!file) return;
+    showErr('');
+    $(which + 'Hint').textContent = '讀取中…';
+    try {
+      await ensureCtx();
+      const ab = await file.arrayBuffer();
+      const decoded = await new Promise((res, rej) => { const p = ctx.decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); });
+      let data = decoded.getChannelData(0);
+      if (decoded.sampleRate !== ctx.sampleRate) {
+        const ratio = decoded.sampleRate / ctx.sampleRate, n = Math.floor(data.length / ratio), out = new Float32Array(n);
+        for (let i = 0; i < n; i++) out[i] = data[Math.floor(i * ratio)];
+        data = out;
+      }
+      const maxN = ctx.sampleRate * MAX_SEC;
+      if (data.length > maxN) data = data.slice(0, maxN);
+      ingest(which, new Float32Array(data));
+    } catch (e) {
+      showErr('這個檔案的聲音讀不出來（' + (e && e.name ? e.name : '解碼失敗') + '）。請再錄一次，錄短一點。');
+      $(which + 'Hint').textContent = '請重新錄一次';
+    }
+  }
+  $('file1').addEventListener('change', e => { handleFile('rec1', e.target.files[0]); e.target.value = ''; });
+  $('file2').addEventListener('change', e => { handleFile('rec2', e.target.files[0]); e.target.value = ''; });
+  if (!micAllowedByPolicy()) showFallback();
+
+  // ---------- wiring ----------
+  $('rec1').addEventListener('click', () => recording ? stopRec() : startRec('rec1'));
+  $('rec2').addEventListener('click', () => recording ? stopRec() : startRec('rec2'));
+  $('play1r').addEventListener('click', () => play(state.origRev, $('wave1'), '#5dd6c8'));
+  $('redo1').addEventListener('click', () => startRec('rec1'));
+  $('go2').addEventListener('click', () => { stopPlayback(); showStep(2); });
+  $('play2r').addEventListener('click', () => play(state.origRev, $('wave2'), '#5dd6c8'));
+  $('play2b').addEventListener('click', () => play(state.imitRev, $('wave2b'), '#f2b544'));
+  $('redo2').addEventListener('click', () => startRec('rec2'));
+  $('go3').addEventListener('click', () => {
+    stopPlayback();
+    const ph = $('phrase').value.trim(), gs = $('guess').value.trim();
+    $('revPhrase').textContent = ph || '（出題者沒有輸入原句，用耳朵判定）';
+    $('revGuess').textContent = gs || '（沒有寫答案，口頭猜）';
+    $('judgeOk').disabled = false; $('judgeNo').disabled = false; $('next').hidden = true;
+    showStep(3);
+  });
+  $('play3o').addEventListener('click', () => play(state.orig, null));
+  $('play3r').addEventListener('click', () => play(state.origRev, null));
+  $('play3b').addEventListener('click', () => play(state.imitRev, null));
+  function judged(ok) {
+    if (ok) state.score[guesserIdx()]++;
+    $('judgeOk').disabled = true; $('judgeNo').disabled = true; $('next').hidden = false;
+    renderNames(); save();
+  }
+  $('judgeOk').addEventListener('click', () => judged(true));
+  $('judgeNo').addEventListener('click', () => judged(false));
+  $('next').addEventListener('click', () => {
+    stopPlayback();
+    state.round++; state.roles = state.roles === 'AB' ? 'BA' : 'AB';
+    state.orig = state.origRev = state.imit = state.imitRev = null;
+    ['deck1', 'act1', 'phraseWrap', 'go2', 'deck2b', 'act2', 'guessWrap', 'go3'].forEach(id => $(id).hidden = true);
+    $('phrase').value = ''; $('guess').value = '';
+    if (micAllowedByPolicy()) { $('rec1Hint').textContent = '按一下開始錄音'; $('rec2Hint').textContent = '按一下開始錄你的模仿'; }
+    renderNames(); save(); showStep(1);
+  });
+
+  // demo waveform so the deck isn't blank before the first recording
+  (function demo() {
+    const n = 3000, d = new Float32Array(n);
+    for (let i = 0; i < n; i++) { const env = Math.sin(Math.PI * i / n) * (0.4 + 0.6 * Math.abs(Math.sin(i / 90))); d[i] = env * Math.sin(i / 3.7) * 0.9; }
+    drawWave($('wave2'), d, '#5dd6c8');
+  })();
+  window.addEventListener('resize', () => { if (state.origRev) { drawWave($('wave1'), state.origRev.getChannelData(0), '#5dd6c8'); drawWave($('wave2'), state.origRev.getChannelData(0), '#5dd6c8'); } if (state.imitRev) drawWave($('wave2b'), state.imitRev.getChannelData(0), '#f2b544'); });
+  renderNames();
+})();
+</script>
